@@ -154,6 +154,10 @@ class Simulator:
                     raise OutOfStock(
                         f"{name} out of stock; order {order_id} and its items "
                         f"never reach Kafka") from None
+                if cur.rowcount == 0:
+                    raise OutOfStock(
+                        f"{name} has no inventory row; order {order_id} and its "
+                        f"items never reach Kafka")
         self.conn.commit()
         self.order_status[order_id] = 0
         return (f"TX checkout       order={order_id} ${total}: orders + "

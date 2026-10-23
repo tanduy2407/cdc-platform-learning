@@ -88,8 +88,10 @@ ON CONFLICT (product_id) DO NOTHING;
 
 COMMIT;
 
--- Give every pre-existing order one line item so that, for ALL orders,
--- orders.amount = SUM(order_items.quantity * order_items.unit_price).
+-- Give each pre-existing order one line item for its product, so that
+-- orders.amount = SUM(order_items.quantity * order_items.unit_price) holds for
+-- old and new orders alike. Orders whose product name isn't in the catalog are
+-- skipped; the seed data and the generator only use catalog names.
 -- On a running stack this is one large transaction: its END marker on
 -- shop.transaction reports one event per backfilled order.
 BEGIN;

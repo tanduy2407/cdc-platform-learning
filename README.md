@@ -265,8 +265,9 @@ python3 -c 'import json; print(json.dumps(json.load(open("connectors/register-po
   | curl -s -X PUT -H "Content-Type: application/json" --data @- \
       http://localhost:8083/connectors/shop-postgres-connector/config
 
-# 2. Create the tables, add them to the publication, seed them, and backfill one
-#    line item per existing order (a single transaction, so one large END marker).
+# 2. Create the tables, add them to the publication, seed them, and give each
+#    existing order a line item for its (catalog) product, all backfilled in a
+#    single transaction, so one large END marker.
 podman exec -i cdc-postgres psql -U cdcuser -d shop -v ON_ERROR_STOP=1 \
   < init/02-order-transactions.sql
 
@@ -351,8 +352,8 @@ transactions whose `END` marker landed before all of their events.
    ATTACH TABLE analytics.mv_order_items;   -- resumes from the last committed offset
    ```
 
-   The count climbs while the view is detached (39 orders after a 12-second
-   run here) and returns to 0 after `ATTACH`, with nothing lost. Meanwhile
+   The count (0 beforehand) climbs while the view is detached (39 orders after
+   a 12-second run here) and returns to 0 after `ATTACH`, with nothing lost. Meanwhile
    `transaction_completeness` reports every transaction complete, because the
    ledger reads the topics through its own consumer group: whether a
    transaction looks complete depends on which consumer is asking.
