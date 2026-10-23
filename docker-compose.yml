@@ -1,0 +1,109 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: cdc-postgres
+    command: ["postgres", "-c", "wal_level=logical"]
+    environment:
+      POSTGRES_USER: cdcuser
+      POSTGRES_PASSWORD: cdcpass
+      POSTGRES_DB: shop
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cdcuser -d shop"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: cdc-kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,HOST://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,HOST:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      CLUSTER_ID: cdc-learning-cluster-1
+    ports:
+      - "29092:29092"
+
+  connect:
+    image: debezium/connect:3.0.0.Final
+    container_name: cdc-connect
+    depends_on:
+      - kafka
+      - postgres
+    environment:
+      BOOTSTRAP_SERVERS: kafka:9092
+      GROUP_ID: cdc-connect-group
+      CONFIG_STORAGE_TOPIC: cdc_connect_configs
+      OFFSET_STORAGE_TOPIC: cdc_connect_offsets
+      STATUS_STORAGE_TOPIC: cdc_connect_status
+      CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      STATUS_STORAGE_REPLICATION_FACTOR: 1
+    ports:
+      - "8083:8083"
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    container_name: cdc-clickhouse
+    depends_on:
+      - kafka
+    environment:
+      CLICKHOUSE_DB: analytics
+      CLICKHOUSE_USER: olapuser
+      CLICKHOUSE_PASSWORD: olappass
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - ./init-clickhouse:/docker-entrypoint-initdb.d
+      - ./clickhouse-config/kafka.xml:/etc/clickhouse-server/config.d/kafka.xml:ro
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+
+  pgadmin:
+    image: dpage/pgadmin4:8.12
+    container_name: cdc-pgadmin
+    depends_on:
+      - postgres
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      # Desktop mode: skip the login screen entirely for local use.
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    ports:
+      - "5050:80"
+    volumes:
+      # Pre-registers the source DB so there's no manual "Add Server" step.
+      - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
+      - ./pgadmin/pgpass:/pgpass:ro
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: cdc-kafka-ui
+    depends_on:
+      - kafka
+      - connect
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: connect
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://connect:8083
+    ports:
+      - "8080:8080"

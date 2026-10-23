@@ -1,0 +1,17 @@
+<clickhouse>
+    <!--
+      librdkafka client settings for the Kafka table engine.
+
+      These are NOT valid as table-level SETTINGS in CREATE TABLE — only the
+      ClickHouse-specific kafka_* options (kafka_broker_list, kafka_format,
+      kafka_num_consumers, ...) go there. Underlying Kafka client properties
+      like auto.offset.reset belong here, with dots replaced by underscores.
+
+      earliest = consume each topic from its beginning, so ClickHouse
+      backfills the Debezium snapshot instead of only seeing changes made
+      after it started.
+    -->
+    <kafka>
+        <auto_offset_reset>earliest</auto_offset_reset>
+    </kafka>
+</clickhouse>

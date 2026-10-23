@@ -1,0 +1,15 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "CDC Source (shop)",
+      "Group": "CDC Platform",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "shop",
+      "Username": "cdcuser",
+      "PassFile": "/pgpass",
+      "SSLMode": "prefer",
+      "Comment": "Source OLTP database Debezium captures changes from."
+    }
+  }
+}
